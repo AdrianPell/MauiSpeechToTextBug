@@ -1,0 +1,73 @@
+﻿@page "/"
+@using CommunityToolkit.Maui.Alerts
+@using CommunityToolkit.Maui.Media
+@using System.Globalization
+
+<h1>Listen test!</h1>
+
+<h3>Intermediate Results:</h3>
+<ul>
+    @foreach (var text in IntermediateText)
+    {
+        <li>@text</li>
+    }
+</ul>
+<h3>Final Result:</h3>
+<p>@FinalText</p>
+
+<button class="btn btn-primary" @onclick="Start">Start Listening</button>
+<button class="btn btn-secondary" @onclick="Stop">Stop Listening</button>
+
+@code {
+    private List<string> IntermediateText { get; set; } = new();
+    private string FinalText { get; set; } = "Press the button and start speaking.";
+
+    ISpeechToText speechToText = OfflineSpeechToText.Default;
+
+    async Task StartListening(CancellationToken cancellationToken)
+    {
+        var isGranted = await speechToText.RequestPermissions(cancellationToken);
+        if (!isGranted)
+        {
+            await Toast.Make("Permission not granted").Show(CancellationToken.None);
+            return;
+        }
+
+        IntermediateText.Clear();
+        FinalText = string.Empty;
+
+        speechToText.RecognitionResultUpdated += OnRecognitionTextUpdated;
+        speechToText.RecognitionResultCompleted += OnFinalTextCompleted;
+        await speechToText.StartListenAsync(new SpeechToTextOptions	{ Culture = CultureInfo.CurrentCulture, ShouldReportPartialResults = true }, CancellationToken.None);
+    }
+
+    async Task StopListening(CancellationToken cancellationToken)
+    {
+        await speechToText.StopListenAsync(CancellationToken.None);
+        speechToText.RecognitionResultUpdated -= OnRecognitionTextUpdated;
+        speechToText.RecognitionResultCompleted -= OnFinalTextCompleted;
+    }
+
+    async void OnRecognitionTextUpdated(object? sender, SpeechToTextRecognitionResultUpdatedEventArgs args)
+    {
+        IntermediateText.Add(args.RecognitionResult);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async void OnFinalTextCompleted(object? sender, SpeechToTextRecognitionResultCompletedEventArgs args)
+    {
+        FinalText = args.RecognitionResult.Text;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Start(MouseEventArgs args)
+    {
+        await StartListening(CancellationToken.None);
+    }
+    private async Task Stop(MouseEventArgs args)
+    {
+        await StopListening(CancellationToken.None);
+    }
+}
